@@ -15,16 +15,26 @@
 
     <div id="filterArea" class="hidden">
 
+      <!-- Filter Section -->
       <div class="mb-6">
         <h3 class="text-xl font-semibold text-blue-500 mb-3">Filter Data</h3>
 
-       <div class="flex items-center flex-wrap gap-4">
-         <div class="flex flex-wrap gap-3 items-center">
-          <label class="font-medium">Column:</label>
-          <select id="filterColumn" class="border border-gray-300 rounded-md px-3 py-2"></select>
+        <div class="flex flex-wrap gap-4 items-center mb-3">
+          <div class="flex flex-wrap gap-3 items-center">
+            <label class="font-medium">Column:</label>
+            <select id="filterColumn" class="border border-gray-300 rounded-md px-3 py-2"></select>
 
-          <label class="font-medium">Contains:</label>
-          <input type="text" id="filterValue" placeholder="Type to filter..." class="border border-gray-300 rounded-md px-3 py-2" />
+            <label class="font-medium">Contains:</label>
+            <input type="text" id="filterValue" placeholder="Type to filter..." class="border border-gray-300 rounded-md px-3 py-2" />
+          </div>
+
+          <div class="flex flex-wrap gap-3 items-center">
+            <label class="font-medium">Start Date/Time:</label>
+            <input type="datetime-local" id="startDate" class="border border-gray-300 rounded-md px-3 py-2" />
+
+            <label class="font-medium">End Date/Time:</label>
+            <input type="datetime-local" id="endDate" class="border border-gray-300 rounded-md px-3 py-2" />
+          </div>
         </div>
 
         <div class="flex flex-wrap gap-3">
@@ -32,14 +42,13 @@
           <button onclick="resetTable()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-md shadow">Reset</button>
           <button onclick="downloadCSV()" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-md shadow">Download Filtered</button>
         </div>
-       </div>
       </div>
 
+      <!-- Duplicate Section -->
       <div class="mb-6">
         <h3 class="text-xl font-semibold text-blue-500 mb-3">Duplicate Checker</h3>
 
-        <div class="flex items-center flex-wrap gap-4">
-          <div class="flex flex-wrap gap-3 items-center">
+        <div class="flex items-center flex-wrap gap-4 mb-3">
           <label class="font-medium">Check Duplicates in:</label>
           <select id="duplicateColumn" class="border border-gray-300 rounded-md px-3 py-2"></select>
         </div>
@@ -47,7 +56,6 @@
         <div class="flex flex-wrap gap-3">
           <button onclick="findDuplicates()" class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-md shadow">Find Duplicates</button>
           <button onclick="removeDuplicates()" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md shadow">Remove Duplicates</button>
-        </div>
         </div>
       </div>
 
@@ -58,7 +66,7 @@
     </div>
   </div>
 
- <!-- Modal -->
+  <!-- Modal -->
   <div id="modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
     <div class="bg-white rounded-lg shadow-lg p-6 w-96">
       <h3 class="text-lg font-semibold text-blue-600 mb-3" id="modalTitle">Message</h3>
@@ -71,13 +79,10 @@
     let originalData = [];
     let filteredData = [];
 
-    // CSV file parsing
     document.getElementById("csvFile").addEventListener("change", function (event) {
       const file = event.target.files[0];
       const reader = new FileReader();
-      reader.onload = function (e) {
-        parseCSV(e.target.result);
-      };
+      reader.onload = function (e) { parseCSV(e.target.result); };
       reader.readAsText(file);
     });
 
@@ -87,7 +92,7 @@
       originalData = rows.slice(1).map(row => {
         const values = row.split(",");
         let obj = {};
-        headers.forEach((h, i) => { obj[h] = values[i] || ""; });
+        headers.forEach((h,i)=>{ obj[h] = values[i] || ""; });
         return obj;
       });
       filteredData = [...originalData];
@@ -99,12 +104,12 @@
     function populateTable(data, headers) {
       const table = document.getElementById("outputTable");
       table.innerHTML = "";
-      let thead = `<tr class="bg-blue-100 text-blue-700 font-semibold"> <th class="border px-3 py-2">S/N</th>`;
+      let thead = `<tr class="bg-blue-100 text-blue-700 font-semibold"><th class="border px-3 py-2">S/N</th>`;
       headers.forEach(h => thead += `<th class="border px-3 py-2">${h}</th>`);
       thead += "</tr>";
       table.innerHTML += thead;
-      data.forEach((row, index) => {
-        let rowHTML = `<tr class="hover:bg-blue-50"><td class="border px-3 py-2">${index + 1}</td>`;
+      data.forEach((row,index)=>{
+        let rowHTML = `<tr class="hover:bg-blue-50"><td class="border px-3 py-2">${index+1}</td>`;
         headers.forEach(h => rowHTML += `<td class="border px-3 py-2">${row[h]}</td>`);
         rowHTML += "</tr>";
         table.innerHTML += rowHTML;
@@ -117,17 +122,28 @@
       filterSelect.innerHTML = "";
       duplicateSelect.innerHTML = "";
       headers.forEach(h => {
-        filterSelect.appendChild(new Option(h, h));
-        duplicateSelect.appendChild(new Option(h, h));
+        filterSelect.appendChild(new Option(h,h));
+        duplicateSelect.appendChild(new Option(h,h));
       });
     }
 
+    // Filter function with date/time support
     function applyFilter() {
       const column = document.getElementById("filterColumn").value;
       const value = document.getElementById("filterValue").value.toLowerCase();
-      filteredData = originalData.filter(row =>
-        row[column] && row[column].toLowerCase().includes(value)
-      );
+      const startDate = document.getElementById("startDate").value;
+      const endDate = document.getElementById("endDate").value;
+
+      filteredData = originalData.filter(row => {
+        let textMatch = !value || (row[column] && row[column].toLowerCase().includes(value));
+
+        let dateMatch = true;
+        if (startDate) dateMatch = dateMatch && (new Date(row[column]) >= new Date(startDate));
+        if (endDate) dateMatch = dateMatch && (new Date(row[column]) <= new Date(endDate));
+
+        return textMatch && dateMatch;
+      });
+
       populateTable(filteredData, Object.keys(originalData[0]));
     }
 
@@ -135,19 +151,18 @@
       filteredData = [...originalData];
       populateTable(filteredData, Object.keys(originalData[0]));
       document.getElementById("filterValue").value = "";
+      document.getElementById("startDate").value = "";
+      document.getElementById("endDate").value = "";
     }
 
     function findDuplicates() {
       const column = document.getElementById("duplicateColumn").value;
       const seen = new Set();
       const duplicates = [];
-      originalData.forEach(row => {
+      originalData.forEach(row=>{
         const value = row[column];
-        if (seen.has(value)) {
-          duplicates.push(row);
-        } else {
-          seen.add(value);
-        }
+        if(seen.has(value)) duplicates.push(row);
+        else seen.add(value);
       });
       filteredData = duplicates;
       populateTable(filteredData, Object.keys(originalData[0]));
@@ -158,12 +173,9 @@
       const column = document.getElementById("duplicateColumn").value;
       const seen = new Set();
       const uniqueRows = [];
-      originalData.forEach(row => {
+      originalData.forEach(row=>{
         const value = row[column];
-        if (!seen.has(value)) {
-          seen.add(value);
-          uniqueRows.push(row);
-        }
+        if(!seen.has(value)) { seen.add(value); uniqueRows.push(row); }
       });
       filteredData = uniqueRows;
       populateTable(filteredData, Object.keys(originalData[0]));
@@ -172,11 +184,10 @@
     }
 
     function downloadCSV() {
-      if (!filteredData.length) return showModal("Error", "No data to download.");
+      if(!filteredData.length) return showModal("Error","No data to download.");
       const headers = Object.keys(originalData[0]).join(",");
-      const rows = filteredData.map(row => Object.values(row).join(",")).join("\n");
-      const csvContent = headers + "\n" + rows;
-      const blob = new Blob([csvContent], { type: "text/csv" });
+      const rows = filteredData.map(row=>Object.values(row).join(",")).join("\n");
+      const blob = new Blob([headers+"\n"+rows],{type:"text/csv"});
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -184,16 +195,13 @@
       a.click();
     }
 
-    // Modal functions
-    function showModal(title, message) {
-      document.getElementById("modalTitle").innerText = title;
-      document.getElementById("modalMessage").innerText = message;
+    function showModal(title,message){
+      document.getElementById("modalTitle").innerText=title;
+      document.getElementById("modalMessage").innerText=message;
       document.getElementById("modal").classList.remove("hidden");
     }
 
-    function closeModal() {
-      document.getElementById("modal").classList.add("hidden");
-    }
+    function closeModal(){document.getElementById("modal").classList.add("hidden");}
   </script>
 
 </body>
