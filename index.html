@@ -2,8 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>CSV Filter + Duplicate Checker</title>
+  <title>Universal File Manager Pro</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- SheetJS for Excel support -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
     
@@ -81,6 +83,15 @@
       from { opacity: 0; transform: translateY(20px); }
       to { opacity: 1; transform: translateY(0); }
     }
+
+    .file-type-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-left: 8px;
+    }
   </style>
 </head>
 <body class="gradient-bg min-h-screen p-4 md:p-8">
@@ -90,9 +101,14 @@
     <!-- Header -->
     <div class="text-center mb-8 fade-in">
       <h1 class="text-4xl md:text-5xl font-bold text-white mb-3">
-        <span class="inline-block animate-pulse">📊</span> CSV Manager Pro
+        <span class="inline-block animate-pulse">📊</span> Universal File Manager Pro
       </h1>
-      <p class="text-blue-100 text-lg">Filter, analyze, and manage your CSV files with ease</p>
+      <p class="text-blue-100 text-lg">Filter, analyze, and manage your CSV & Excel files with ease</p>
+      <div class="mt-3 flex flex-wrap justify-center gap-2 text-sm">
+        <span class="bg-white/20 text-white px-3 py-1 rounded-full">✓ CSV</span>
+        <span class="bg-white/20 text-white px-3 py-1 rounded-full">✓ Excel (.xlsx, .xls)</span>
+        <span class="bg-white/20 text-white px-3 py-1 rounded-full">✓ TSV</span>
+      </div>
     </div>
 
     <!-- Main Card -->
@@ -101,11 +117,18 @@
       <!-- File Upload Section -->
       <div class="mb-8">
         <label class="block mb-3">
-          <span class="text-gray-700 font-semibold text-lg">📁 Upload Your CSV File</span>
+          <span class="text-gray-700 font-semibold text-lg">📁 Upload Your File</span>
+          <span id="fileTypeIndicator" class="file-type-badge bg-gray-200 text-gray-700 hidden"></span>
         </label>
         <div class="relative">
-          <input type="file" id="csvFile" accept=".csv" class="block w-full text-sm text-gray-700 file:mr-4 file:py-3 file:px-6 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gradient-to-r file:from-blue-500 file:to-blue-600 file:text-white hover:file:from-blue-600 hover:file:to-blue-700 file:cursor-pointer file:transition-all file:duration-300 cursor-pointer border-2 border-dashed border-blue-300 rounded-xl p-4 hover:border-blue-400 transition-all" />
+          <input 
+            type="file" 
+            id="fileInput" 
+            accept=".csv,.xlsx,.xls,.tsv,.txt" 
+            class="block w-full text-sm text-gray-700 file:mr-4 file:py-3 file:px-6 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gradient-to-r file:from-blue-500 file:to-blue-600 file:text-white hover:file:from-blue-600 hover:file:to-blue-700 file:cursor-pointer file:transition-all file:duration-300 cursor-pointer border-2 border-dashed border-blue-300 rounded-xl p-4 hover:border-blue-400 transition-all" 
+          />
         </div>
+        <p class="text-xs text-gray-600 mt-2">Supported formats: CSV, Excel (.xlsx, .xls), TSV, TXT</p>
       </div>
 
       <div id="filterArea" class="hidden fade-in">
@@ -145,7 +168,7 @@
           <div class="flex flex-wrap gap-3 mt-6">
             <button onclick="applyFilter()" class="btn-gradient text-white px-6 py-3 rounded-lg shadow-lg font-semibold">Apply Filter</button>
             <button onclick="resetTable()" class="bg-gray-100 hover:bg-gray-200 text-gray-800 px-6 py-3 rounded-lg shadow font-semibold transition-all">Reset</button>
-            <button onclick="downloadCSV()" class="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white px-6 py-3 rounded-lg shadow-lg font-semibold transition-all">Download Filtered</button>
+            <button onclick="downloadFile()" class="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white px-6 py-3 rounded-lg shadow-lg font-semibold transition-all">Download Filtered</button>
           </div>
         </div>
 
@@ -192,39 +215,126 @@
   <script>
     let originalData = [];
     let filteredData = [];
+    let currentFileType = '';
+    let currentFileName = '';
 
-    document.getElementById("csvFile").addEventListener("change", function (event) {
+    document.getElementById("fileInput").addEventListener("change", function (event) {
       const file = event.target.files[0];
+      if (!file) return;
+
+      currentFileName = file.name;
+      const fileExtension = file.name.split('.').pop().toLowerCase();
+      currentFileType = fileExtension;
+
+      // Update file type indicator
+      const indicator = document.getElementById('fileTypeIndicator');
+      indicator.textContent = fileExtension.toUpperCase();
+      indicator.classList.remove('hidden');
+      
+      // Choose appropriate color based on file type
+      indicator.className = 'file-type-badge';
+      if (fileExtension === 'csv') {
+        indicator.classList.add('bg-green-100', 'text-green-700');
+      } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
+        indicator.classList.add('bg-blue-100', 'text-blue-700');
+      } else {
+        indicator.classList.add('bg-purple-100', 'text-purple-700');
+      }
+
       const reader = new FileReader();
-      reader.onload = function (e) { parseCSV(e.target.result); };
-      reader.readAsText(file);
+
+      if (fileExtension === 'csv' || fileExtension === 'tsv' || fileExtension === 'txt') {
+        // Handle CSV, TSV, TXT
+        reader.onload = function (e) {
+          const delimiter = fileExtension === 'tsv' ? '\t' : ',';
+          parseDelimitedFile(e.target.result, delimiter);
+        };
+        reader.readAsText(file);
+      } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
+        // Handle Excel files
+        reader.onload = function (e) {
+          try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            
+            // Get first sheet
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            
+            // Convert to JSON
+            const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+            
+            if (jsonData.length === 0) {
+              showModal('Error', 'The file appears to be empty.');
+              return;
+            }
+
+            const headers = jsonData[0];
+            originalData = jsonData.slice(1).map(row => {
+              let obj = {};
+              headers.forEach((h, i) => {
+                obj[h] = row[i] !== undefined ? String(row[i]) : '';
+              });
+              return obj;
+            });
+
+            filteredData = [...originalData];
+            populateTable(filteredData, headers);
+            populateFilterOptions(headers);
+            document.getElementById("filterArea").classList.remove("hidden");
+            
+            showModal('Success', `Excel file loaded successfully! ${originalData.length} rows found.`);
+          } catch (error) {
+            showModal('Error', 'Failed to parse Excel file: ' + error.message);
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      } else {
+        showModal('Error', 'Unsupported file format. Please upload CSV, Excel (.xlsx, .xls), or TSV files.');
+      }
     });
 
-    function parseCSV(text) {
-      const rows = text.split("\n").map(r => r.trim()).filter(r => r.length > 0);
-      const headers = rows[0].split(",");
-      originalData = rows.slice(1).map(row => {
-        const values = row.split(",");
-        let obj = {};
-        headers.forEach((h,i)=>{ obj[h] = values[i] || ""; });
-        return obj;
-      });
-      filteredData = [...originalData];
-      populateTable(filteredData, headers);
-      populateFilterOptions(headers);
-      document.getElementById("filterArea").classList.remove("hidden");
+    function parseDelimitedFile(text, delimiter = ',') {
+      try {
+        const rows = text.split("\n").map(r => r.trim()).filter(r => r.length > 0);
+        
+        if (rows.length === 0) {
+          showModal('Error', 'The file appears to be empty.');
+          return;
+        }
+
+        const headers = rows[0].split(delimiter).map(h => h.trim());
+        
+        originalData = rows.slice(1).map(row => {
+          const values = row.split(delimiter).map(v => v.trim());
+          let obj = {};
+          headers.forEach((h, i) => {
+            obj[h] = values[i] || "";
+          });
+          return obj;
+        });
+
+        filteredData = [...originalData];
+        populateTable(filteredData, headers);
+        populateFilterOptions(headers);
+        document.getElementById("filterArea").classList.remove("hidden");
+        
+        showModal('Success', `File loaded successfully! ${originalData.length} rows found.`);
+      } catch (error) {
+        showModal('Error', 'Failed to parse file: ' + error.message);
+      }
     }
 
     function populateTable(data, headers) {
       const table = document.getElementById("outputTable");
       table.innerHTML = "";
       let thead = `<thead><tr class="bg-gradient-to-r from-blue-600 to-blue-800 text-white"><th class="px-4 py-4 text-left font-semibold">S/N</th>`;
-      headers.forEach(h => thead += `<th class="px-4 py-2 text-left font-semibold">${h}</th>`);
+      headers.forEach(h => thead += `<th class="px-4 py-4 text-left font-semibold">${h}</th>`);
       thead += "</tr></thead><tbody>";
       table.innerHTML += thead;
-      data.forEach((row,index)=>{
-        let rowHTML = `<tr class="table-row border-b border-gray-100"><td class="px-4 py-2 font-medium text-gray-700">${index+1}</td>`;
-        headers.forEach(h => rowHTML += `<td class="px-4 py-2 text-gray-600">${row[h]}</td>`);
+      data.forEach((row, index) => {
+        let rowHTML = `<tr class="table-row border-b border-gray-100"><td class="px-4 py-3 font-medium text-gray-700">${index + 1}</td>`;
+        headers.forEach(h => rowHTML += `<td class="px-4 py-3 text-gray-600">${row[h]}</td>`);
         rowHTML += "</tr>";
         table.innerHTML += rowHTML;
       });
@@ -237,12 +347,17 @@
       filterSelect.innerHTML = "";
       duplicateSelect.innerHTML = "";
       headers.forEach(h => {
-        filterSelect.appendChild(new Option(h,h));
-        duplicateSelect.appendChild(new Option(h,h));
+        filterSelect.appendChild(new Option(h, h));
+        duplicateSelect.appendChild(new Option(h, h));
       });
     }
 
     function applyFilter() {
+      if (originalData.length === 0) {
+        showModal('Error', 'Please upload a file first.');
+        return;
+      }
+
       const column = document.getElementById("filterColumn").value;
       const value = document.getElementById("filterValue").value.toLowerCase();
       const startDate = document.getElementById("startDate").value;
@@ -259,63 +374,107 @@
       });
 
       populateTable(filteredData, Object.keys(originalData[0]));
+      showModal('Filter Applied', `Showing ${filteredData.length} of ${originalData.length} rows.`);
     }
 
     function resetTable() {
+      if (originalData.length === 0) {
+        showModal('Error', 'Please upload a file first.');
+        return;
+      }
+
       filteredData = [...originalData];
       populateTable(filteredData, Object.keys(originalData[0]));
       document.getElementById("filterValue").value = "";
       document.getElementById("startDate").value = "";
       document.getElementById("endDate").value = "";
+      showModal('Reset', 'All filters have been cleared.');
     }
 
     function findDuplicates() {
+      if (originalData.length === 0) {
+        showModal('Error', 'Please upload a file first.');
+        return;
+      }
+
       const column = document.getElementById("duplicateColumn").value;
       const seen = new Set();
       const duplicates = [];
-      originalData.forEach(row=>{
+      
+      originalData.forEach(row => {
         const value = row[column];
-        if(seen.has(value)) duplicates.push(row);
+        if (seen.has(value)) duplicates.push(row);
         else seen.add(value);
       });
+
       filteredData = duplicates;
       populateTable(filteredData, Object.keys(originalData[0]));
       showModal("Duplicates Found", `Found ${duplicates.length} duplicate entries in column: ${column}`);
     }
 
     function removeDuplicates() {
+      if (originalData.length === 0) {
+        showModal('Error', 'Please upload a file first.');
+        return;
+      }
+
       const column = document.getElementById("duplicateColumn").value;
       const seen = new Set();
       const uniqueRows = [];
-      originalData.forEach(row=>{
+      
+      originalData.forEach(row => {
         const value = row[column];
-        if(!seen.has(value)) { seen.add(value); uniqueRows.push(row); }
+        if (!seen.has(value)) {
+          seen.add(value);
+          uniqueRows.push(row);
+        }
       });
+
+      const removedCount = originalData.length - uniqueRows.length;
       filteredData = uniqueRows;
       populateTable(filteredData, Object.keys(originalData[0]));
-      showModal("Duplicates Removed", `${originalData.length - uniqueRows.length} duplicates removed successfully.`);
+      showModal("Duplicates Removed", `${removedCount} duplicates removed successfully.`);
       originalData = [...uniqueRows];
     }
 
-    function downloadCSV() {
-      if(!filteredData.length) return showModal("Error","No data to download.");
-      const headers = Object.keys(originalData[0]).join(",");
-      const rows = filteredData.map(row=>Object.values(row).join(",")).join("\n");
-      const blob = new Blob([headers+"\n"+rows],{type:"text/csv"});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "filtered.csv";
-      a.click();
+    function downloadFile() {
+      if (filteredData.length === 0) {
+        showModal("Error", "No data to download.");
+        return;
+      }
+
+      const headers = Object.keys(originalData[0]);
+
+      if (currentFileType === 'xlsx' || currentFileType === 'xls') {
+        // Download as Excel
+        const ws = XLSX.utils.json_to_sheet(filteredData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Filtered Data");
+        XLSX.writeFile(wb, `filtered_${currentFileName}`);
+        showModal("Success", "Excel file downloaded successfully!");
+      } else {
+        // Download as CSV
+        const csvHeaders = headers.join(",");
+        const csvRows = filteredData.map(row => headers.map(h => `"${row[h]}"`).join(",")).join("\n");
+        const blob = new Blob([csvHeaders + "\n" + csvRows], { type: "text/csv" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `filtered_${currentFileName.replace(/\.[^/.]+$/, '')}.csv`;
+        a.click();
+        showModal("Success", "CSV file downloaded successfully!");
+      }
     }
 
-    function showModal(title,message){
-      document.getElementById("modalTitle").innerText=title;
-      document.getElementById("modalMessage").innerText=message;
+    function showModal(title, message) {
+      document.getElementById("modalTitle").innerText = title;
+      document.getElementById("modalMessage").innerText = message;
       document.getElementById("modal").classList.remove("hidden");
     }
 
-    function closeModal(){document.getElementById("modal").classList.add("hidden");}
+    function closeModal() {
+      document.getElementById("modal").classList.add("hidden");
+    }
   </script>
 
 </body>
